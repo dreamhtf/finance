@@ -2,8 +2,6 @@
 
 ### 1.5.1 通用属性
 
-
-
 ```xml
 <stream:stream>	// 创建了一个XMPP流
     <iq type='get'>
@@ -31,11 +29,17 @@
 ​	负优先级不会接收到通过裸JID寻址方式传送过来的消息
 
 1. 普通presence节
+
 2. 扩展presence节：可以扩展，但没必要
+
 3. 出席订阅：
+
+   - 用户的服务器会自动地将出席信息广播给那些订阅该用户出席信息的联系人。类似地，用户从所有他已经进行出席订阅的联系人那里，接收到出席更新信息。
+
    - subscribe/unsubscribe：请求建立新的出席订阅或取消一个现有的订阅
      subscribed/unsubscribed：对这类请求的应答
-4. 定向出席：通常用于多人聊天
+
+4. 定向出席：通常用于多人聊天。定向出席节是一种直接发给另一个用户或其他某个实体的普通<presence>节。这些节可以用来向那些没有进行出席订阅（通常因为只是临时需要出席信息）的实体传达出席状态信息。
 
 ### 1.5.3 message节（一个实体向另一个实体发送消息）
 
@@ -293,13 +297,69 @@ $(document).bind('disconnected', function () {
 })
 ```
 
+# 第六章 与好友交谈：一对一聊天
 
+## 6.2 Gab的设计
 
+​	XMPP即时通信使用了大量的<message>节和<presence>节	
 
+​	每当一个用户与另一个用户通信时都要发送<message>节
 
-​	
+​	每当联系人上线、状态变为离开或者离线时，都会发送<presence>节。<persence>节通告用户的聊天可访问性。
 
-​	
+### 6.2.1 出席
+
+​	为了让A接收到来自B的出席更新信息，A必须首先订阅这些更新信息。此外，B必须批准A的订阅请求。大多数情况下，A向B发送订阅请求，A会自动批准来自B的订阅请求。
+
+```xml
+<!-- 下面的XMPP节用来从服务器那里请求Elizabeth的花名册 -->
+<iq from='elizabeth@longbourn.lit/library' type='get' id='roster1'>
+    <query xmlns='jabber:iq:roster'/>
+</iq>
+
+<!-- 她的服务器将响应如下内容-->
+<iq to='elizabeth@longbourn.lit/library' type='result' id='roster1'>
+	<query xmlns='jabber:iq:roster'>
+    	<item jid='darcy@pemberley.lit' name='Mr.Darcy' subscription='both'/>
+        <item jid='jane@longbourn.lit' name='Jane' subscription='both'/>
+    </query>
+</iq>
+```
+
+jid：联系人的地址	name：该联系人的指定别名	subscription：根据联系人的出席状态设置的。
+
+如果双发都订阅，那么它的值为both；
+
+如果只有Elizabeth订阅，那么该值为to；
+
+如果Elizabeth没有订阅，Jane订阅了她的出席信息，那么该值为from；
+
+一般而言，用户希望看到花名册中subscription值为both或to的联系人。
+
+```js
+// 将下面代码添加到connected事件处理程序中以检索花名册
+$(document).bind('connected',fucntion () {
+    var iq = $iq({type: 'get'}).c('query', {xmlns: 'jabber:iq:roster'});
+	Gab.connection.sendIQ(iq, Gab.on_roster);
+});
+
+// 将on_roster()的实现添加到Gab对象中
+on_roster: function (iq) {
+    $(iq).find('item').each(function () {
+    	var jid = $(this).attr('jid');
+        var name = $(this).attr('name') || jid;
+        var jid_id = Gab.jid_to_id(jid);
+        var contact = $("<li id' " + jid_id + "'>" +
+                       "<div class='roster-contact offline'>" +
+                       "<div class='roster-name'>" +
+                       name +
+                       "</div><div class='roster-jid'>" +
+                       jid +
+                       "</div></div></li>");
+        Gab.insert_contact(contact);
+    });
+}
+```
 
 
 
