@@ -337,6 +337,8 @@ jid：联系人的地址	name：该联系人的指定别名	subscription：根�
 一般而言，用户希望看到花名册中subscription值为both或to的联系人。
 
 ```js
+
+
 // 将下面代码添加到connected事件处理程序中以检索花名册
 $(document).bind('connected',fucntion () {
     var iq = $iq({type: 'get'}).c('query', {xmlns: 'jabber:iq:roster'});
@@ -356,10 +358,89 @@ on_roster: function (iq) {
                        "</div><div class='roster-jid'>" +
                        jid +
                        "</div></div></li>");
+        // insert_contact()函数用来让联系人列表保持正确的排序
         Gab.insert_contact(contact);
     });
 }
+
+// 使用联系人的裸JID的稍作变形的版本作为id
+jid_to_id: function (jid) {
+    return Strophe.getBareJidFromJid(jid)
+    	.replace("@", "-")
+    	.replace(".", "-");
+}
+
+// 将insert_contact()实现以及它的辅助函数presence_value()添加到Gab对象中
+presence_value: function (elem) {
+    if (elem.hasClass('online')) {
+        return 2;
+    } else if (elem.hasClass('away')) {
+        return 1;
+    }
+    
+    return 0;
+},
+    
+insert_contact: function (elem) {
+    var jid = elem.find('.roster-jid').text();
+    var pres = Gab.presence_value(elem.find('.roster-contact'));
+    var contacts = $('#roster-area li');
+    
+    if (contacts.length > 0) {
+        var inserted = false;
+        contacts.each(function () {
+            var cmp_pres = Gab.presence_value($(this).find('.roster-contact'));
+            var cmp_jid = $(this).find('.roster-jid').text();
+            
+            if (pres > cmp_pres) {
+                $(this).before(elem);
+                inserted = true;
+                return false;
+            } else {
+                if (jid < cmp_jid) {
+                    $(this).before(elem);
+                    inserted = true;
+                    return false;
+                }
+            }
+        });
+        if (!inserted) {
+            $('#rester-area ul').append(elem);
+        }
+    } else {
+            $('#roster-area ul').append(elem);
+    }
+}
+// 如果运行当前状态的Gab程序，那么我们应该能够登录到服务器并会看到花名册显示出来并且已经排序
 ```
 
+### 6.4.2 处理IQ
 
+​	<iq>节时唯一需要有响应的XMPP节。每个IQ-get或IQ-set节都必须接收到相应的IQ-set或IQ-error节，类似GET或POST一样。
+
+### 6.4.3 更新出席状态
+
+​	为了不错过任何更新，我们总是应该在发送那些将要触发我们感兴趣的事件之前设置好合适的处理程序
+
+```js
+on_roster: function (iq) {
+    $(iq).find('item').each(function () {
+    	var jid = $(this).attr('jid');
+        var name = $(this).attr('name') || jid;
+        var jid_id = Gab.jid_to_id(jid);
+        var contact = $("<li id' " + jid_id + "'>" +
+                       "<div class='roster-contact offline'>" +
+                       "<div class='roster-name'>" +
+                       name +
+                       "</div><div class='roster-jid'>" +
+                       jid +
+                       "</div></div></li>");
+        // insert_contact()函数用来让联系人列表保持正确的排序
+        Gab.insert_contact(contact);
+        // 设置状态并发送初始状态
+        Gab.connection.addHandler(Gab.on_presence, null, "presence");
+        Gab.connection.send($pres());
+    });
+}
+```
 
